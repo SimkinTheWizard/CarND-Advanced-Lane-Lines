@@ -17,10 +17,10 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
+[image1]: ./output_images/camera_calibration_test.png "Undistorted"
+[image2]: ./output_images/distortion_correction.png "Road Transformed"
+[image3]: ./output_images/perspective_transform.png "Perspective Transform"
+[image4]: ./output_images/perspective_transform.png "Perspective Transform2"
 [image5]: ./examples/color_fit_lines.jpg "Fit Visual"
 [image6]: ./examples/example_output.jpg "Output"
 [video1]: ./project_video.mp4 "Video"
@@ -55,11 +55,51 @@ Result of this step is demonstrated with the following picture:
 ![alt text][image2]
 
 #### 2. Perspective Transform
-The code of the part can be found in the cells following 'Distortion Correction' heading in the jupyter notebook.
+The code of the part can be found in the cells following 'Perspective Transform' heading in the jupyter notebook. I hand picked the source coordinates as follows, and used the following code to get the destination points:
+
+```python
+    offset = 10
+    dst = np.float32([[offset, offset], [img_size[0]-offset, offset], 
+                                         [img_size[0]-offset, img_size[1]-offset], 
+                                         [offset, img_size[1]-offset]])
+
+    y_min = 445
+    y_max = 640
+    src=np.float32([(575,y_min),(713,y_min),(1300,y_max),(90,y_max)])
+```
+
+| Source        | Destination   | 
+|:-------------:|:-------------:| 
+| 585, 460      | 320, 0        | 
+| 203, 720      | 320, 720      |
+| 1127, 720     | 960, 720      |
+| 695, 460      | 960, 0        |
+
+The result of this transfomr is demonstrated in the following picture
+Result of this step is demonstrated with the following picture:
+![alt text][image3]
+![alt text][image4]
 
 #### 3. Color Transforms and Binary Images
+As the next step I used edge detection and thresholding of different color transforms to get a binary image.I used sobel edge detection to find the edges specifically on the x axis. I also used two more features from HLS color space. I converted the image to HLS color space, using 'cv2.cvtColor(img, cv2.COLOR_BGR2HLS)' function, and used L and S channels.
+
+I noticed that S channel, although giving information on both lines, gives more information about the yellow lines on the sides; and L channel and sobel edge information give more information about the white lines.
+
+The following picture demonstrates the result of sobel edge detection
+![alt text][image5]
+
+The following picture demonstrates the result of S channel thresholding
+![alt text][image6]
+
+The following picture demonstrates the result of L channel thresholding
+![alt text][image7]
+
+The resulting image is as follows
+![alt text][image8]
 
 #### 4. Curve Fitting on Binary Image and Finding The Lane Lines
+
+After 
 
 #### 5. Calculation of the Curvature 
 
@@ -69,9 +109,7 @@ The code of the part can be found in the cells following 'Distortion Correction'
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
 
-![alt text][image3]
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
