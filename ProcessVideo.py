@@ -14,11 +14,14 @@ video_file="project_video.mp4"
 output_file="project_video_out.mp4"
 
 # Global definitions
-ym_per_pix = 30 / 720  # meters per pixel in y dimension
+ym_per_pix = 40 / 720  # meters per pixel in y dimension
 xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
 
 frame_shape=(1280,720)
 CPU_BATCH_SIZE=16
+
+
+verbose = False
 # --------------------------------------
 # a utility function for plotting opencv images with matplotlib
 def mp(img):
@@ -37,7 +40,7 @@ def set_up_perspective_transform():
     #print (img_size)
     #src=np.float32([(450,450),(1000,450),(2000,700),(200,700)])
     #dst=np.float32([(0,0),(1200,0),(1200,700),(00,700)])
-    offset = 10
+    offset = 5
     dst = np.float32([[offset, offset], [img_size[0]-offset, offset],
                                          [img_size[0]-offset, img_size[1]-offset],
                                          [offset, img_size[1]-offset]])
@@ -48,7 +51,7 @@ def set_up_perspective_transform():
     M = cv2.getPerspectiveTransform(src, dst)
     return M,img_size
 
-def sobel_edges(img, thresh_min = 30, thresh_max = 100):
+def sobel_edges(img, thresh_min = 25, thresh_max = 100):
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
     # Sobel x
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0) # Take the derivative in x
@@ -59,16 +62,28 @@ def sobel_edges(img, thresh_min = 30, thresh_max = 100):
     sxbinary[(scaled_sobel >= thresh_min) & (scaled_sobel <= thresh_max)] = 1
     return sxbinary
 
-def s_magnitude(img, s_thresh_min = 110, s_thresh_max = 255):
+def s_magnitude(img, s_thresh_min = 140, s_thresh_max = 255):
     hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
     s_channel = hls[:,:,2]
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= s_thresh_min) & (s_channel <= s_thresh_max)] = 1
     return s_binary
 
+def l_magnitude(img, l_thresh_min = 190, l_thresh_max = 255):
+    hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+    l_channel = hls[:,:,1]
+    l_binary = np.zeros_like(l_channel)
+    l_binary[(l_channel >= l_thresh_min) & (l_channel <= l_thresh_max)] = 1
+    return l_binary
+
 def combine(sxbinary, s_binary):
     combined_binary = np.zeros_like(sxbinary)
     combined_binary[(s_binary == 1) | (sxbinary == 1)] = 1
+    return combined_binary
+
+def combine3(sxbinary, s_binary,h_binary):
+    combined_binary = np.zeros_like(sxbinary)
+    combined_binary[(s_binary == 1) | (sxbinary == 1) | (h_binary == 1)] = 1
     return combined_binary
 
 def denoise(combined):
@@ -79,10 +94,11 @@ def denoise(combined):
 def binarize(img):
     s_mag = s_magnitude(img)
     sobel = sobel_edges(img)
-    combined = combine(sobel,s_mag)
-    combined_open = denoise(combined)
-    return combined_open
-
+    l_mag = l_magnitude(img)
+    #combined = combine(sobel,s_mag)
+    combined = combine3(sobel,s_mag,l_mag)
+    #combined_open = denoise(combined)
+    return combined, s_mag, sobel, l_mag
 
 def window_mask(width, height, img_ref, center, level):
     output = np.zeros_like(img_ref)
@@ -99,9 +115,9 @@ def find_window_centroids(image, window_width=50, window_height=100, margin=100)
     # and then np.convolve the vertical image slice with the window template
 
     # Sum quarter bottom of image to get slice, could use a different ratio
-    l_sum = np.sum(image[int(3 * image.shape[0] / 4):, :int(image.shape[1] / 2)], axis=0)
+    l_sum = np.sum(image[int(2 * image.shape[0] / 4):, :int(image.shape[1] / 2)], axis=0)
     l_center = np.argmax(np.convolve(window, l_sum)) - window_width / 2
-    r_sum = np.sum(image[int(3 * image.shape[0] / 4):, int(image.shape[1] / 2):], axis=0)
+    r_sum = np.sum(image[int(2 * image.shape[0] / 4):, int(image.shape[1] / 2):], axis=0)
     r_center = np.argmax(np.convolve(window, r_sum)) - window_width / 2 + int(image.shape[1] / 2)
 
     # Add what we found for the first layer
@@ -205,6 +221,11 @@ def calculate_curvature_radius(l_fit, r_fit):
     # Example values: 632.1 m    626.2 m
     return left_curverad, right_curverad
 
+def calculate_relative_position(window_centroids):
+    position=  1280/2 - ((window_centroids[0][1] - window_centroids[0][0])/2 + window_centroids[0][0])
+    position_real_world = position * xm_per_pix
+    return position_real_world
+
 def calculate_weighted_average(left_curverad, right_curverad, l_locations, r_locations):
     return (left_curverad*l_locations.size + right_curverad * r_locations.size) / (l_locations.size + r_locations.size)
 
@@ -215,7 +236,7 @@ def set_inverse_transform():
     #print (img_size)
     #src=np.float32([(450,450),(1000,450),(2000,700),(200,700)])
     #dst=np.float32([(0,0),(1200,0),(1200,700),(00,700)])
-    offset = 10
+    offset = 5
     dst = np.float32([[offset, offset], [img_size[0]-offset, offset],
                                          [img_size[0]-offset, img_size[1]-offset],
                                          [offset, img_size[1]-offset]])
@@ -249,12 +270,15 @@ def draw_lane_polygon(frame, warped, Minv, l_x,l_y, r_x,r_y ):
 
 def process_frame(img):
     warped = correct_perspective(img, M, img_size)
-    binary = binarize(warped)
+    binary, s_mag, sobel, l_mag = binarize(warped)
 
     window_width = 50
     window_height = 100  # Break image into 9 vertical layers since image height is 720
     margin = 100  # How much to slide left and right for searching
     window_centroids = find_window_centroids(binary)
+    if verbose:
+        output2 = np.zeros((1280, int((720*4)/3), 3))
+
     output = np.zeros((1280, 720, 3))
     # If we found any window centers
     if len(window_centroids) > 0:
@@ -289,6 +313,8 @@ def process_frame(img):
 
         curvature_radius = calculate_weighted_average(left_curverad, right_curverad, l_loc_x, r_loc_x)
         # print(curvature_radius)
+        relative_position = calculate_relative_position(window_centroids)
+        #print (relative_position)
 
         template1 = np.array(r_fit, np.uint8)  # add both left and right window pixels together
         template2 = np.array(l_fit, np.uint8)  # add both left and right window pixels together
@@ -300,13 +326,31 @@ def process_frame(img):
         # output = np.zeros_like(img)
         output = draw_lane_polygon(img, binary, Minv, l_x, l_y, r_x, r_y)
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 2
-        cv2.putText(output, (str(int(curvature_radius)) + " meters"), (100, 100), font, font_scale, (255, 255, 255),
+        font_scale = 1
+        cv2.putText(output, ("Radius of curvature "+str(curvature_radius) + " m"), (100, 50), font, font_scale, (255, 255, 255),
                     2, cv2.LINE_AA)
+        cv2.putText(output, ("Relative position  "+str(relative_position) + " m"), (100, 100), font, font_scale, (255, 255, 255),
+                    2, cv2.LINE_AA)
+
+        if verbose:
+            #warped_small = cv2.resize(warped, (320,180), interpolation=cv2.INTER_NEAREST)
+            binary_small = cv2.resize(binary, (320,180), interpolation=cv2.INTER_NEAREST)*255
+            s_mag_small = cv2.resize(s_mag, (320,180), interpolation=cv2.INTER_NEAREST)*255
+            l_mag_small = cv2.resize(l_mag, (320,180), interpolation=cv2.INTER_NEAREST)*255
+            sobel_small = cv2.resize(sobel, (320,180), interpolation=cv2.INTER_NEAREST)*255
+
+            verbose_small = np.concatenate((binary_small, s_mag_small, l_mag_small, sobel_small), axis=1)
+
+
+            output2gray = np.array(cv2.merge((verbose_small, verbose_small, verbose_small)), np.uint8)
+            output2 = np.concatenate((output2gray,output),axis=0)
+
+
         # If no window centers found, just display orginal road image
     else:
         output = np.array(cv2.merge((binary,binary,binary)),np.uint8)
-
+    if verbose:
+        return output2
     return output
 
 # --------------------------------------
@@ -362,8 +406,12 @@ print( "The video has " + str(length) + " frames" )
 # Define the codec and create VideoWriter object
 
 fps = 30
-capSize = (1280,720) # this is the size of my source video
-fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v') # note the lower case
+
+if verbose:
+    capSize = (1280, 900)
+else:
+    capSize = (1280, 720)
+fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
 writer = cv2.VideoWriter()
 success = writer.open(output_file,fourcc,fps,capSize,True)
 if not success:
@@ -375,8 +423,12 @@ num_cores = multiprocessing.cpu_count()
 batch_frames = []
 while(capture.isOpened()):
     ret, img = capture.read()
-
     if ret==True:
+        frame_count = frame_count + 1
+        print("Frame " + str(frame_count) + " of " + str(length) + "\r")
+
+        #if frame_count < 590:
+        #    continue
         batch_frames.append(img)
         #output = process_frame(img)
         #writer.write(output)
@@ -384,7 +436,7 @@ while(capture.isOpened()):
         if (len(batch_frames) >= CPU_BATCH_SIZE):
             results = Parallel(n_jobs=num_cores)(delayed(process_frame)(batch_frames[i]) for i in range(len(batch_frames)))
             #results = Parallel(                delayed(process_frame)(batch_frames[i]) for i in range(len(batch_frames)))
-            print (len(results))
+            print ("Processed " + str(len(results)) + "frames")
             for i in range( len(batch_frames)):
                 output = np.asarray(results[i])
                 writer.write(output)
@@ -393,8 +445,6 @@ while(capture.isOpened()):
             batch_frames = []
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        frame_count = frame_count + 1
-        print("Frame " + str(frame_count) + " of " + str(length) + "\r")
 
     else:
         break
