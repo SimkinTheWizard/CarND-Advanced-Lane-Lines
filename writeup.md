@@ -28,7 +28,7 @@ The goals / steps of this project are the following:
 [image9]: ./output_images/curve_fitting_for_lines.png "Curve Fitting"
 [image10]: ./output_images/curve_fitting_for_lines2.png "Curve Fitting"
 [image11]: ./output_images/polygon_drawing.png "Polygon"
-[image12]: ./output_images/polygon_drawing.png "Polygon"
+[image12]: ./output_images/polygon_drawing2.png "Polygon"
 [video1]: ./project_video_out.mp4 "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
