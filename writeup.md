@@ -112,7 +112,7 @@ The resulting image is as follows
 b Component of Lab colorspace gives more reliable information about the yellow lines, compared to the S component of HLS space.
 So I replaced the S component with b component.
 
-The following pictures demonstrate the difference between using S component and b component. The S component of HLS (on the left) has unwanted bright areas whereas b component of Lab (on the right) gives a much clearer line.
+The following pictures demonstrate the difference between using S component and b component. The S component of HLS (the upper image) has unwanted bright areas whereas b component of Lab (the lower image) gives a much clearer line.
 ![alt text][image13]  ![alt text][image14] 
 
 #### 4. Curve Fitting on Binary Image and Finding The Lane Lines
@@ -168,7 +168,9 @@ For performance reasons, I left jupyter notebook and implemented this same pipe 
 
 
 
-Here's a [link to my video result](./project_video_out.mp4)
+Here's a [link to my video result](./project_video_out.avi)
+
+I also added a [debug level video](./project_video_out_verbose.avi) which as four additional images on top of final image demonstrating intermediary steps of the process. I used this video to see the levels and fine tune the thresholds of binarization operation. The four binary images are the binarized-combined image, S channel, L channel, and Sobel edges from left to right.
 
 ---
 
