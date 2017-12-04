@@ -70,7 +70,7 @@ def sobel_edges(img, thresh_min = 20, thresh_max = 100):
     sxbinary[(scaled_sobel >= thresh_min) & (scaled_sobel <= thresh_max)] = 1
     return sxbinary
 
-def s_magnitude(img, s_thresh_min = 150, s_thresh_max = 255):
+def b_magnitude(img, s_thresh_min = 150, s_thresh_max = 255):
     hls = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     s_channel = hls[:,:,2]
     s_binary = np.zeros_like(s_channel)
@@ -100,13 +100,13 @@ def denoise(combined):
     return combined_open
 
 def binarize(img):
-    s_mag = s_magnitude(img,s_thresh)
+    b_mag = b_magnitude(img, s_thresh)
     sobel = sobel_edges(img,sobel_thresh)
     l_mag = l_magnitude(img,l_thresh)
     #combined = combine(sobel,s_mag)
-    combined = combine3(sobel,s_mag,l_mag)
+    combined = combine3(sobel,b_mag,l_mag)
     combined_open = denoise(combined)
-    return combined_open, s_mag, sobel, l_mag
+    return combined_open, b_mag, sobel, l_mag
 
 def window_mask(width, height, img_ref, center, level):
     output = np.zeros_like(img_ref)
@@ -421,7 +421,10 @@ if verbose:
     capSize = (1280, 900)
 else:
     capSize = (1280, 720)
-fourcc = cv2.VideoWriter_fourcc('x', '2', '6', '4')
+# For ubuntu
+#fourcc = cv2.VideoWriter_fourcc('x', '2', '6', '4')
+# For mac
+fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
 writer = cv2.VideoWriter()
 success = writer.open(output_file,fourcc,fps,capSize,True)
 if not success:
@@ -443,7 +446,7 @@ while(capture.isOpened()):
         frame_count = frame_count + 1
         print("Frame " + str(frame_count) + " of " + str(length) + "\r")
 
-        #if frame_count < 1030:
+        #if frame_count < 1033:
         #    continue
         #batch_frames.append(img)
         output = process_frame(img)
