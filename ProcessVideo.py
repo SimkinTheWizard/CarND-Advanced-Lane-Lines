@@ -11,11 +11,19 @@ import gc
 gc.collect()
 
 video_file="project_video.mp4"
-output_file="project_video_out.mp4"
+output_file="project_video_out1.avi"
 
 # Global definitions
 ym_per_pix = 40 / 720  # meters per pixel in y dimension
 xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
+
+window_width = 50
+window_height = 150  # Break image into 9 vertical layers since image height is 720
+margin = 100  # How much to slide left and right for searching
+
+sobel_thresh=20
+s_thresh = 140
+l_thresh = 190
 
 frame_shape=(1280,720)
 CPU_BATCH_SIZE=16
@@ -51,7 +59,7 @@ def set_up_perspective_transform():
     M = cv2.getPerspectiveTransform(src, dst)
     return M,img_size
 
-def sobel_edges(img, thresh_min = 25, thresh_max = 100):
+def sobel_edges(img, thresh_min = 20, thresh_max = 100):
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
     # Sobel x
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0) # Take the derivative in x
@@ -62,8 +70,8 @@ def sobel_edges(img, thresh_min = 25, thresh_max = 100):
     sxbinary[(scaled_sobel >= thresh_min) & (scaled_sobel <= thresh_max)] = 1
     return sxbinary
 
-def s_magnitude(img, s_thresh_min = 140, s_thresh_max = 255):
-    hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+def s_magnitude(img, s_thresh_min = 150, s_thresh_max = 255):
+    hls = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     s_channel = hls[:,:,2]
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= s_thresh_min) & (s_channel <= s_thresh_max)] = 1
@@ -92,13 +100,13 @@ def denoise(combined):
     return combined_open
 
 def binarize(img):
-    s_mag = s_magnitude(img)
-    sobel = sobel_edges(img)
-    l_mag = l_magnitude(img)
+    s_mag = s_magnitude(img,s_thresh)
+    sobel = sobel_edges(img,sobel_thresh)
+    l_mag = l_magnitude(img,l_thresh)
     #combined = combine(sobel,s_mag)
     combined = combine3(sobel,s_mag,l_mag)
-    #combined_open = denoise(combined)
-    return combined, s_mag, sobel, l_mag
+    combined_open = denoise(combined)
+    return combined_open, s_mag, sobel, l_mag
 
 def window_mask(width, height, img_ref, center, level):
     output = np.zeros_like(img_ref)
@@ -115,9 +123,9 @@ def find_window_centroids(image, window_width=50, window_height=100, margin=100)
     # and then np.convolve the vertical image slice with the window template
 
     # Sum quarter bottom of image to get slice, could use a different ratio
-    l_sum = np.sum(image[int(2 * image.shape[0] / 4):, :int(image.shape[1] / 2)], axis=0)
+    l_sum = np.sum(image[int(1 * image.shape[0] / 4):, :int(image.shape[1] / 2)], axis=0)
     l_center = np.argmax(np.convolve(window, l_sum)) - window_width / 2
-    r_sum = np.sum(image[int(2 * image.shape[0] / 4):, int(image.shape[1] / 2):], axis=0)
+    r_sum = np.sum(image[int(3 * image.shape[0] / 4):, int(image.shape[1] / 2):], axis=0)
     r_center = np.argmax(np.convolve(window, r_sum)) - window_width / 2 + int(image.shape[1] / 2)
 
     # Add what we found for the first layer
@@ -272,10 +280,8 @@ def process_frame(img):
     warped = correct_perspective(img, M, img_size)
     binary, s_mag, sobel, l_mag = binarize(warped)
 
-    window_width = 50
-    window_height = 100  # Break image into 9 vertical layers since image height is 720
-    margin = 100  # How much to slide left and right for searching
-    window_centroids = find_window_centroids(binary)
+
+    window_centroids = find_window_centroids(binary, window_width,window_height,margin)
     if verbose:
         output2 = np.zeros((1280, int((720*4)/3), 3))
 
@@ -333,8 +339,10 @@ def process_frame(img):
                     2, cv2.LINE_AA)
 
         if verbose:
+	    
             #warped_small = cv2.resize(warped, (320,180), interpolation=cv2.INTER_NEAREST)
             binary_small = cv2.resize(binary, (320,180), interpolation=cv2.INTER_NEAREST)*255
+            #zeros_small = output = np.zeros_like(binary_small)
             s_mag_small = cv2.resize(s_mag, (320,180), interpolation=cv2.INTER_NEAREST)*255
             l_mag_small = cv2.resize(l_mag, (320,180), interpolation=cv2.INTER_NEAREST)*255
             sobel_small = cv2.resize(sobel, (320,180), interpolation=cv2.INTER_NEAREST)*255
@@ -403,6 +411,8 @@ capture = cv2.VideoCapture(video_file)
 length = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
 print( "The video has " + str(length) + " frames" )
 
+
+
 # Define the codec and create VideoWriter object
 
 fps = 30
@@ -411,15 +421,21 @@ if verbose:
     capSize = (1280, 900)
 else:
     capSize = (1280, 720)
-fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+fourcc = cv2.VideoWriter_fourcc('x', '2', '6', '4')
 writer = cv2.VideoWriter()
 success = writer.open(output_file,fourcc,fps,capSize,True)
 if not success:
     print("Could not open output video file for writing")
     exit(-1)
 
+
+
+
 frame_count = 0
 num_cores = multiprocessing.cpu_count()
+print ("This cpu has "+str(num_cores)+" cores")
+
+
 batch_frames = []
 while(capture.isOpened()):
     ret, img = capture.read()
@@ -427,22 +443,22 @@ while(capture.isOpened()):
         frame_count = frame_count + 1
         print("Frame " + str(frame_count) + " of " + str(length) + "\r")
 
-        #if frame_count < 590:
+        #if frame_count < 1030:
         #    continue
-        batch_frames.append(img)
-        #output = process_frame(img)
-        #writer.write(output)
-        #cv2.imshow('frame', output)
-        if (len(batch_frames) >= CPU_BATCH_SIZE):
-            results = Parallel(n_jobs=num_cores)(delayed(process_frame)(batch_frames[i]) for i in range(len(batch_frames)))
-            #results = Parallel(                delayed(process_frame)(batch_frames[i]) for i in range(len(batch_frames)))
-            print ("Processed " + str(len(results)) + "frames")
-            for i in range( len(batch_frames)):
-                output = np.asarray(results[i])
-                writer.write(output)
-                cv2.imshow('frame',results[i])
-                cv2.waitKey(1)
-            batch_frames = []
+        #batch_frames.append(img)
+        output = process_frame(img)
+        writer.write(output)
+        cv2.imshow('frame', output)
+        #if (len(batch_frames) >= CPU_BATCH_SIZE):
+        #    results = Parallel(n_jobs=num_cores)(delayed(process_frame)(batch_frames[i]) for i in range(len(batch_frames)))
+        #    results = Parallel(                delayed(process_frame)(batch_frames[i]) for i in range(len(batch_frames)))
+        #    print ("Processed " + str(len(results)) + "frames")
+        #    for i in range( len(batch_frames)):
+        #        output = np.asarray(results[i])
+        #        writer.write(output)
+        #        cv2.imshow('frame',results[i])
+        #        cv2.waitKey(1)
+        #    batch_frames = []
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
