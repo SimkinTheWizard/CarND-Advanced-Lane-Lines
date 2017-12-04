@@ -28,7 +28,7 @@ The goals / steps of this project are the following:
 [image9]: ./output_images/curve_fitting_for_lines.png "Curve Fitting"
 [image10]: ./output_images/curve_fitting_for_lines2.png "Curve Fitting"
 [image11]: ./output_images/polygon_drawing.png "Polygon"
-[image12]: ./output_images/polygon_drawing.png "Polygon"
+[image12]: ./output_images/polygon_drawing2.png "Polygon"
 [video1]: ./project_video_out.mp4 "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
@@ -104,6 +104,14 @@ The following picture demonstrates the result of L channel thresholding
 
 The resulting image is as follows
 ![alt text][image8]
+
+**Addenum:** After I worked with the test videos I noticed that S channel of the HLS color space produces so much unwanted artifacts that I could not filter out either with thresholding or with binary operations. I found the idea of using Lab colorspace from [Jeremy Shannon's github page] (https://github.com/jeremy-shannon/). 
+
+b Component of Lab colorspace gives more reliable information about the yellow lines, compared to the S component of HLS space.
+So I replaced the S component with b component.
+
+The following pictures demonstrate the difference between using S component and b component.
+![alt text][image9]
 
 #### 4. Curve Fitting on Binary Image and Finding The Lane Lines
 I used the window masking method for finding the lane lines. To do this I separated image vertically into search regions of 50 pixels each. In each window I used the histogram method to find local peaks. I used these peaks as the center points of the windows. 
