@@ -169,6 +169,7 @@ For performance reasons, I left jupyter notebook and implemented this same pipe 
 
 
 Here's a [link to my video result](./project_video_out.avi)
+![alt text][video1]
 
 I also added a [debug level video](./project_video_out_verbose.avi) which as four additional images on top of final image demonstrating intermediary steps of the process. I used this video to see the levels and fine tune the thresholds of binarization operation. The four binary images are the binarized-combined image, S channel, L channel, and Sobel edges from left to right.
 
