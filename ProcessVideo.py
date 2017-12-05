@@ -39,7 +39,7 @@ def mp(img):
 def correct_perspective(img, M, img_size):
     undistorted = cv2.undistort(img, mtx, dist, None, mtx)
     warped = cv2.warpPerspective(undistorted, M, img_size, flags=cv2.INTER_LINEAR)
-    return warped
+    return warped, undistorted
 
 
 def set_up_perspective_transform():
@@ -277,7 +277,7 @@ def draw_lane_polygon(frame, warped, Minv, l_x,l_y, r_x,r_y ):
     return result
 
 def process_frame(img):
-    warped = correct_perspective(img, M, img_size)
+    warped, undistorted = correct_perspective(img, M, img_size)
     binary, s_mag, sobel, l_mag = binarize(warped)
 
 
@@ -330,7 +330,7 @@ def process_frame(img):
 
         # output = cv2.addWeighted(warpage, 0.5, template, 0.99, 0.0) # overlay the orignal road image with window results
         # output = np.zeros_like(img)
-        output = draw_lane_polygon(img, binary, Minv, l_x, l_y, r_x, r_y)
+        output = draw_lane_polygon(undistorted, binary, Minv, l_x, l_y, r_x, r_y)
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1
         cv2.putText(output, ("Radius of curvature "+str(curvature_radius) + " m"), (100, 50), font, font_scale, (255, 255, 255),
@@ -422,9 +422,9 @@ if verbose:
 else:
     capSize = (1280, 720)
 # For ubuntu
-#fourcc = cv2.VideoWriter_fourcc('x', '2', '6', '4')
+fourcc = cv2.VideoWriter_fourcc('x', '2', '6', '4')
 # For mac
-fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+#fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
 writer = cv2.VideoWriter()
 success = writer.open(output_file,fourcc,fps,capSize,True)
 if not success:
